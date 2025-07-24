@@ -89,7 +89,7 @@ def stop_music():
 
 
 # === configuration ===
-noise_gain = 2 #it should be 1 since volume range is [0 1]
+noise_gain = 1 #it should be 1 since volume range is [0 1]
 music_vol = 1
 channels = ['tp9', 'af7', 'af8', 'tp10']
 fnirs_channels = ['af7', 'af8']
@@ -438,6 +438,9 @@ class MuseDashboard(QtWidgets.QMainWindow):
         self.fade_in_music(bg_music, bg_channel, duration_ms=1000, target_volume=0) #music_vol #no bgm
         self.fade_in_music(white_noise, noise_channel, duration_ms=1000, target_volume=noise_gain)
         
+        # measure the range of radius
+        self.r_min = 10
+        self.r_max = 0
 
     def update_volume_smooth(self):
         # 线性插值靠近目标音量
@@ -584,9 +587,15 @@ class MuseDashboard(QtWidgets.QMainWindow):
                     self.r_arousal_temp = self.log_ratio_to_radius(self.last_th_arousal_ratio)
                     self.circle_arousal_threshold = self.radius_to_log_ratio(self.r_arousal_temp)
 
-                    vol_meditat = (self.r_meditat_temp-0.1) 
-                    noise_channel.set_volume(vol_meditat*noise_gain)  #control noise range!
-                    # print(f'noise volume:{vol_meditat*noise_gain},but real volume:{noise_channel.get_volume()}')
+                    # Calculate the min and max radius of meditation circle
+                    if self.r_min > self.r_meditat_temp:
+                        self.r_min = self.r_meditat_temp
+                    if self.r_max < self.r_meditat_temp:
+                        self.r_max = self.r_meditat_temp
+
+                    
+
+                    noise_channel.set_volume(1)  #control noise range!
 
                     self.circle_item.setRect(-self.r_meditat_temp, -self.r_meditat_temp, 0, 0)  
                     self.th_circle_item.setRect(-self.r_meditat_temp, -self.r_meditat_temp, 2*self.r_meditat_temp, 2*self.r_meditat_temp)
@@ -622,7 +631,8 @@ class MuseDashboard(QtWidgets.QMainWindow):
                                                    \nStatus: Calibration \
                                                    \nWait: {remaining}s remaining \
                                                    \nThreshold          = {dB_to_raw_amplitude(self.circle_arousal_threshold):.3f} \
-                                                   \nRadius (baseline) = {self.r_arousal_temp:.3f} \nTotal time: {(time.time() - self.sampling_start_time):.2f}")
+                                                   \nRadius (baseline) = {self.r_arousal_temp:.3f} \nTotal time: {(time.time() - self.sampling_start_time):.2f} \
+                                                   \nvolume = {noise_channel.get_volume()}")
 
                     self.labels['Meditation'].setStyleSheet("color: gray; font-size: 24px;")
                     self.labels['Arousal'].setStyleSheet("color: gray; font-size: 24px;")
@@ -640,6 +650,9 @@ class MuseDashboard(QtWidgets.QMainWindow):
                 
                 self.labels['Meditation'].setText(f"Meditation panel \nThreshold={dB_to_raw_amplitude(self.theta_alpha_log_threshold):.3f} dB \nRadius (base) = {self.r_th_meditat:.3f}")
 
+                # determin the level that noise is zero!
+                self.r_min = min(self.r_min,self.r_th_meditat)
+
             if not hasattr(self, 'theta_beta_log_threshold'):
                 threshold = np.median(self.arousal_history)
 
@@ -649,7 +662,8 @@ class MuseDashboard(QtWidgets.QMainWindow):
                 self.circle_arousal_item.setRect(-self.r_th_arousal, -self.r_th_arousal, 0, 0) 
                 self.th_circle_arousal_item.setRect(-self.r_th_arousal, -self.r_th_arousal, 2*self.r_th_arousal, 2*self.r_th_arousal) 
                 
-                self.labels['Arousal'].setText(f"Arousal panel \nThreshold={dB_to_raw_amplitude(self.theta_beta_log_threshold):.3f} dB \nRadius (base) = {self.r_th_arousal:.3f}")
+                self.labels['Arousal'].setText(f"Arousal panel \nThreshold={dB_to_raw_amplitude(self.theta_beta_log_threshold):.3f} dB \nRadius (base) = {self.r_th_arousal:.3f}\
+                                                   \nvolume = {noise_channel.get_volume()}")
 
             if avg_alpha_time_buffer:
                 x_delta, y_delta = trim_recent(avg_delta_time_buffer, avg_delta_buffer, self.display_window_sec)
@@ -689,7 +703,7 @@ class MuseDashboard(QtWidgets.QMainWindow):
 
                     self.circle_item.setRect(-r_meditat, -r_meditat, 2*r_meditat, 2*r_meditat)
                     
-                    vol_meditat = (r_meditat-0.1) 
+                    vol_meditat = (r_meditat - self.r_min) / (self.r_max - self.r_min)
                     noise_channel.set_volume(vol_meditat*noise_gain)  #control noise range!
                     # print('noise volume:',noise_channel.get_volume())
                     if r_meditat < self.r_th_meditat:
@@ -803,7 +817,8 @@ class MuseDashboard(QtWidgets.QMainWindow):
                                                                   \nRadius (baseline) = {self.r_th_arousal:.3f} \
                                                                   \nRadius (now)      = {r_arousal:.3f} \
                                                                   \nTotal time: {(time.time() - self.sampling_start_time):.2f} \
-                                                                  \nTotal arousal time: {self.acc_arousal_time:.2f}")
+                                                                  \nTotal arousal time: {self.acc_arousal_time:.2f}\
+                                                                  \nvolume = {noise_channel.get_volume()}")
                             
                                 
                                 self.labels['Arousal'].setStyleSheet("color: blue; font-size: 24px;")
@@ -823,7 +838,8 @@ class MuseDashboard(QtWidgets.QMainWindow):
                                                                   \nRadius (baseline) = {self.r_th_arousal:.3f} \
                                                                   \nRadius (now)      = {r_arousal:.3f} \
                                                                   \nTotal time: {(time.time() - self.sampling_start_time):.2f} \
-                                                                  \nTotal arousal time: {self.acc_arousal_time:.2f}")
+                                                                  \nTotal arousal time: {self.acc_arousal_time:.2f}\
+                                                                  \nvolume = {noise_channel.get_volume()}")
                                 
                                 self.labels['Arousal'].setStyleSheet("color: green; font-size: 24px;")
                     else:
@@ -834,7 +850,8 @@ class MuseDashboard(QtWidgets.QMainWindow):
                                                                   \nRadius (baseline) = {self.r_th_arousal:.3f} \
                                                                   \nRadius (now)      = {r_arousal:.3f} \
                                                                   \nTotal time: {(time.time() - self.sampling_start_time):.2f} \
-                                                                  \nTotal arousal time: {self.acc_arousal_time:.2f}")
+                                                                  \nTotal arousal time: {self.acc_arousal_time:.2f}\
+                                                                  \nvolume = {noise_channel.get_volume()}")
                         
                         self.labels['Arousal'].setStyleSheet("color: red; font-size: 24px;")
                         self.circle_arousal_item.setBrush(pg.mkBrush(100, 100, 255, 150))  # blue
