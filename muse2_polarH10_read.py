@@ -27,6 +27,8 @@ df = df_orig[df_orig['Status'] == 'Test']
 # 2. color setting
 valid_channels = ['af7', 'af8'] #,'tp9','tp10']
 bands = ['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']
+bands_Latin = ['δ', 'θ', 'α', 'β', 'γ']
+
 colors = {
     'Delta': 'r',   # red
     'Theta': 'm',   # magenta
@@ -80,16 +82,16 @@ ax1 = plt.subplot(3,1,2)
 # Left y-axis: Meditation (Theta/Alpha)
 line1, = ax1.plot(df['Time_min'],
                   dB_to_raw_amplitude(smooth_band_avgs['meditation']),
-                  color='red', label='Meditation (Theta/Alpha)')
-ax1.set_ylabel("Meditation (Theta/Alpha)", color='red')
+                  color='red', label='Meditation (θ/α)')
+ax1.set_ylabel("Meditation (θ/α)", color='red')
 ax1.tick_params(axis='y', labelcolor='red')
 
 # Right y-axis: Arousal (Theta/Beta)
 ax2 = ax1.twinx()
 line2, = ax2.plot(df['Time_min'],
                   dB_to_raw_amplitude(smooth_band_avgs['arousal']),
-                  color='blue', label='Arousal (Theta/Beta)')
-ax2.set_ylabel("Arousal (Theta/Beta)", color='blue')
+                  color='blue', label='Inverse Arousal (β/θ)')
+ax2.set_ylabel("Inverse Arousal (β/θ)", color='blue')
 ax2.tick_params(axis='y', labelcolor='blue')
 
 # Combine legends (from both axes)
