@@ -55,7 +55,7 @@ pip install -r requirements.txt
 
 python muse2_polarH10_arousal_meditatation_biofeedback.py
 
-### 5.Visualization
+### 5. Visualization
 **After recording the data, you can visualize the results**
 
 python muse2_polarH10_read.py
