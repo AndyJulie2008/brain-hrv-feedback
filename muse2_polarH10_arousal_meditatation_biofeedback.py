@@ -11,7 +11,7 @@ from datetime import datetime
 from PyQt5.QtWidgets import QGraphicsEllipseItem 
 import os
 import pygame
-
+from bleak import BleakScanner, BleakClient
 import argparse
 
 #####################################################################
@@ -99,7 +99,7 @@ class ParameterDialog(QtWidgets.QDialog):
 
 
 pygame.mixer.init()
-music_dir = "C:/RESEARCH_YW/EEG_muse/"
+music_dir = "C:/RESEARCH_YW/EEG_muse/stimuli/"
 music_list = ["Hans Zimmer_time.mp3", "1_hrRain_Thunderstorm.mp3", "Relaxing_Ocean_Wave.mp3", "Interstellar.mp3","Destroyer_Of_Worlds.mp3","White_Noise_1min.mp3","Bandari_Silence_With_Sound_From_Nature.mp3", "Night_OCEAN_WAVES_3hrs.mp3"]
 bg_music = pygame.mixer.Sound(os.path.join(music_dir,music_list[4])) # Reward for arousal
 white_noise = pygame.mixer.Sound(os.path.join(music_dir,music_list[1])) # Noise
@@ -414,6 +414,10 @@ class MuseDashboard(QtWidgets.QMainWindow):
         self.rmssd_plot.setLabel('left', 'RMSSD (ms)', **{'color': '#FFFFFF', 'font-size': '12pt'})
         self.rmssd_plot.showGrid(x=True, y=True, alpha=0.3)
         self.rmssd_curve = self.rmssd_plot.plot(pen=pg.mkPen('b', width=2), name='RMSSD')
+        line_30 = pg.InfiniteLine(pos=30, angle=0, pen=pg.mkPen(color='y', width=2, style=QtCore.Qt.DashLine))
+        line_50 = pg.InfiniteLine(pos=50, angle=0, pen=pg.mkPen(color='g', width=2, style=QtCore.Qt.DashLine))
+        self.rmssd_plot.addItem(line_30)
+        self.rmssd_plot.addItem(line_50)
         for sec in range(int(-self.rmssd_display_window_sec), 1, 30):  # e.g. -20 to 0
             vline = pg.InfiniteLine(pos=sec, angle=90,
                                     pen=pg.mkPen(color=(180, 180, 180), style=QtCore.Qt.DotLine))
@@ -500,12 +504,42 @@ class MuseDashboard(QtWidgets.QMainWindow):
 
     ############################# PolarH10 ##############################################
     async def connect_polar(self):
-        async with BleakClient(H10_ADDRESS) as client:
-            print("Connected to Polar H10")
-            await client.start_notify(HR_UUID, self.hr_callback)
-            while True:
-                await asyncio.sleep(1)
+        
+        print("Scan Polar H10...")
+        devices = await BleakScanner.discover()
+        polar_device = None
+        for d in devices:
+            if "Polar H10" in (d.name or ""):
+                polar_device = d
+                print(f"Found Polar H10: {d.address}")
+                break
 
+        if not polar_device:
+            print("❌ Did not find Polar H10")
+            return
+
+        try:
+            async with BleakClient(polar_device.address) as client:
+                print("Connected to Polar H10")
+
+                battery_data = await client.read_gatt_char(BATTERY_UUID)
+                battery_level = int(battery_data[0])
+                print(f"🔋 Battery: {battery_level}%")
+
+                # Scan all services
+                services = client.services
+                print("🔍 Found services:")
+                for service in services:
+                    print(f"[Service] {service}")
+                    for char in service.characteristics:
+                        print(f"  [Characteristic] {char} ({char.uuid})")
+
+                # Confirm HR_UUID 
+                await client.start_notify(HR_UUID, self.hr_callback)
+                while True:
+                    await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("\n Cannot successfully connect Polar H10")
 
     def hr_callback(self, sender, data, win_len=100, min_count=2):
         """Input heart rate and RR (interval) to compute RMSSD"""
@@ -1065,7 +1099,7 @@ class MuseDashboard(QtWidgets.QMainWindow):
         global recording, csv_writer, csv_file
         if not recording:
             filename = f"muse2_polarH10_recording_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            csv_file = open(os.path.join('C:/RESEARCH_YW/EEG_muse',filename), "w", newline='')
+            csv_file = open(os.path.join('C:/RESEARCH_YW/EEG_muse/csv',filename), "w", newline='')
             csv_writer = csv.writer(csv_file)
             headers = ['Time', 'Concentration', 'Mellow'] + \
                       [f"Delta_{ch}" for ch in channels] + \
@@ -1092,7 +1126,7 @@ class MuseDashboard(QtWidgets.QMainWindow):
                 d.clear()
 
 # === OSC Server ===
-def start_osc_server(ip="10.0.0.120", port=5000):
+def start_osc_server(ip="192.168.68.72", port=5000):
     disp = dispatcher.Dispatcher()
     disp.map("/muse/elements/alpha_absolute", alpha_handler)
     disp.map("/muse/elements/theta_absolute", theta_handler)
